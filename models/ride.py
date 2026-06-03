@@ -1,13 +1,13 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 
 class RideBase(BaseModel):
-    id: int
-    customer_id: int
+    customer_name: str
     pickup_location: str
     destination: str
     status: str
-    driver_id: int
+    driver_id: Optional[int] = None
+    fare: float
 
 class RideCreate(RideBase):
     pass
