@@ -61,3 +61,17 @@ def delete_driver(driver_id: int):
     conn.close()
 
     return {"message": "Driver deleted"}
+
+@router.put("/{driver_id}/availability")
+def update_driver_availability(driver_id: int, available: bool):
+    conn = get_db_connection()
+
+    conn.execute(
+        "UPDATE drivers SET available = ? WHERE id = ?",
+        (int(available), driver_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Driver availability updated"}

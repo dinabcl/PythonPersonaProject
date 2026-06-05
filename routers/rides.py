@@ -90,3 +90,17 @@ def delete_ride(ride_id: int):
     conn.close()
 
     return {"message": "Ride deleted"}
+
+@router.put("/{ride_id}/status")
+def update_ride_status(ride_id: int, status: str):
+    conn = get_db_connection()
+
+    conn.execute(
+        "UPDATE rides SET status = ? WHERE id = ?",
+        (status, ride_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {"message": "Ride status updated"}

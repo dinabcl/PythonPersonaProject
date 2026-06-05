@@ -40,19 +40,24 @@ def create_database():
     cursor.execute("DELETE FROM drivers")
 
     drivers = [
-        ("John Smith", "Toyota Prius", "ZH-124 882", 1, 47.3769, 8.5417),
-        ("Sarah Jones", "VW Golf", "ZH-552 914", 1, 47.3771, 8.5420),
-        ("Mike Brown", "Skoda Octavia", "ZH-883 120", 1, 47.3775, 8.5410),
-        ("Emma Taylor", "Mercedes C200", "ZH-772 441", 1, 47.3765, 8.5430),
-        ("David Wilson", "Audi A4", "ZH-339 665", 0, 47.3780, 8.5405),
+        ("Arben Krasniqi", "Toyota Prius", "01-124-AA", 1, 42.6629, 21.1655),
+        ("Drita Berisha", "VW Golf", "01-552-BB", 1, 42.6515, 21.1533),
+        ("Besnik Gashi", "Skoda Octavia", "01-883-CC", 1, 42.6236, 21.1484),
+        ("Elira Hoxha", "Mercedes C200", "01-772-DD", 1, 42.6786, 21.2011),
+        ("Valon Shala", "Audi A4", "01-339-EE", 0, 42.6487, 21.1740),
     ]
 
     rides = [
-        ("Alice", "Zurich HB", "Zurich Airport", "Completed", 1, 42.50),
-        ("Ben", "Bahnhofstrasse", "ETH Zurich", "Completed", 2, 18.00),
-        ("Mia", "Zurich Airport", "City Center", "Accepted", 3, 39.90),
-        ("Noah", "Oerlikon", "Altstetten", "Waiting", None, 25.00),
-        ("Lina", "University", "Main Station", "Completed", 4, 16.50),
+        ("Arta", "Prishtina Center", "Albi Mall", "Completed", 1, 12.50),
+        ("Luan", "Mother Teresa Boulevard", "University of Prishtina", "Completed", 2, 8.00),
+        ("Blerta", "Prishtina Airport", "Prishtina Center", "Accepted", 3, 18.90),
+        ("Dren", "Rruga B", "Germia Park", "Waiting", None, 7.50),
+        ("Valbona", "Prishtina Bus Station", "Fushe Kosove", "Completed", 4, 9.50),
+        ("Ardit", "Prizren", "Prishtina Center", "Completed", 2, 28.00),
+        ("Besa", "Peja", "Prishtina Airport", "Completed", 1, 35.00),
+        ("Gent", "Gjilan", "Ferizaj", "Completed", 3, 14.00),
+        ("Shqipe", "Mitrovica", "Prishtina Center", "Accepted", 4, 22.50),
+        ("Fisnik", "Lipjan", "Prishtina Center", "Waiting", None, 10.00)
     ]
 
     cursor.executemany("""
