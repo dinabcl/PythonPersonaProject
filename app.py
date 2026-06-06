@@ -9,8 +9,9 @@ from streamlit_autorefresh import st_autorefresh
 API_URL = "http://127.0.0.1:8000"
 SIMULATED_MINUTE_SECONDS = 2
 
-st.set_page_config(page_title="Taksi Kosova", layout="wide")
-st.title("🚕 Taksi Kosova")
+st.set_page_config(page_title="Infinity Taxi", layout="wide")
+st.title("Infinity Taxi")
+st.caption("Taxi Dispatch and Tracking System")
 
 if "active_rides" not in st.session_state:
     st.session_state.active_rides = []
@@ -87,7 +88,9 @@ def is_valid_plate(plate):
 
 
 def status_badge(status):
-    if status == "Accepted":
+    if status == "Waiting":
+        return "🟡 Waiting"
+    elif status == "Accepted":
         return "🟢 Driver Coming"
     elif status == "Transporting":
         return "🟣 Transporting Customer"
@@ -239,8 +242,8 @@ drivers = get_drivers()
 rides = get_rides()
 
 admin_tab, customer_tab = st.tabs([
-    "📊 Admin Dashboard",
-    "🚕 Customer App"
+    "Admin Dashboard",
+    "Customer App"
 ])
 
 
@@ -281,7 +284,7 @@ with admin_tab:
             license_plate = license_plate.strip().upper()
 
             if not is_valid_name(name):
-                st.error("Driver name must be at least 3 letters and contain only letters/spaces.")
+                st.error("Driver name must be at least 3 letters and contain only letters or spaces.")
 
             elif not is_valid_car_model(car_model):
                 st.error("Car model must be at least 3 characters and contain letters.")
@@ -302,7 +305,7 @@ with admin_tab:
                 response = requests.post(f"{API_URL}/drivers/", json=payload)
 
                 if response.status_code == 200:
-                    st.success("Driver added!")
+                    st.success("Driver added successfully.")
                     st.rerun()
                 else:
                     st.error("Could not add driver.")
@@ -370,7 +373,7 @@ with customer_tab:
         for driver in drivers:
             status = "🟢 Available" if driver["available"] == 1 else "🔴 Busy"
             driver_options.append(
-                f"{driver['id']} - {driver['name']} {status}"
+                f"{driver['id']} - {driver['name']} ({status})"
             )
 
         selected_driver = st.selectbox("Choose Driver", driver_options)
@@ -381,7 +384,7 @@ with customer_tab:
             customer_name = customer_name.strip()
 
             if not is_valid_name(customer_name):
-                st.error("Customer name must be at least 3 letters and contain only letters/spaces.")
+                st.error("Customer name must be at least 3 letters and contain only letters or spaces.")
 
             elif pickup_location == destination:
                 st.error("Pickup and destination cannot be the same.")
@@ -447,7 +450,7 @@ with customer_tab:
                     })
 
                     st.success(
-                        f"Taxi requested! {assigned_driver['name']} is on the way."
+                        f"Taxi requested. {assigned_driver['name']} is on the way."
                     )
                     st.rerun()
                 else:
@@ -472,7 +475,7 @@ with customer_tab:
                 st.rerun()
 
             with st.expander(
-                f"Ride #{ride['ride_id']} — {driver['name']} — {status_badge(current_phase)}",
+                f"Ride #{ride['ride_id']} - {driver['name']} - {status_badge(current_phase)}",
                 expanded=True
             ):
                 st.write(f"**Status:** {status_badge(current_phase)}")
@@ -492,7 +495,7 @@ with customer_tab:
                     st.write(f"**Trip finishes in:** {remaining_eta} minutes")
 
                 elif current_phase == "Completed":
-                    st.success("🔵 Ride completed. You arrived at your destination.")
+                    st.success("Ride completed. You arrived at your destination.")
                     st.write("**ETA:** 0 minutes")
 
                 if current_phase != "Completed":
