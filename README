@@ -1,0 +1,33 @@
+Infinity Taxi
+Project Description
+
+Infinity Taxi is a taxi dispatch and tracking system built using FastAPI, SQLite, Pydantic, and Streamlit. The application allows customers to request rides, choose available drivers, track driver locations on a live map, and monitor ride progress in real time.
+
+The system includes an admin dashboard for managing drivers and rides, as well as a customer interface for requesting and tracking trips. Driver availability, ride statuses, estimated arrival times, and fares are automatically managed by the application.
+
+Running the Project
+1. Install Dependencies
+pip install -r requirements.txt
+2. Create the Database
+
+If a taxi.db file already exists and you want a fresh database, delete it first.
+
+Then run:
+
+python database.py
+3. Start the FastAPI Backend
+
+Open a terminal and run:
+
+uvicorn main:app --reload
+
+You can verify that the API is running by opening:
+
+http://127.0.0.1:8000/docs
+4. Start the Streamlit Application
+
+Open a second terminal and run:
+
+streamlit run app.py
+
+The Infinity Taxi dashboard should now open in your browser.
