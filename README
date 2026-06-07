@@ -31,3 +31,43 @@ Open a second terminal and run:
 streamlit run app.py
 
 The Infinity Taxi dashboard should now open in your browser.
+
+
+
+Login Information
+
+The application uses a simple authentication system with two different user roles.
+
+Admin Account
+
+Username:
+admin
+
+Password:
+admin123
+
+The administrator can:
+
+Add new drivers
+View all drivers
+View all rides
+Monitor ride statuses
+Track drivers on the live map
+View revenue and system statistics
+Customer Account
+
+Username:
+customer
+
+Password:
+customer123
+
+The customer can:
+
+Request a taxi
+Select a preferred driver
+View ride details
+Track the driver's live location
+Monitor ride progress and ETA
+Cancel active rides
+

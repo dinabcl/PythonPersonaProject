@@ -36,8 +36,20 @@ def create_database():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS locations(
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            name      TEXT NOT NULL,
+            latitude  REAL NOT NULL,
+            longitude REAL NOT NULL
+            )
+    """)
+
     cursor.execute("DELETE FROM rides")
     cursor.execute("DELETE FROM drivers")
+    cursor.execute("DELETE FROM locations")
+
+
 
     drivers = [
         ("Arben Krasniqi", "Toyota Prius", "01-124-AA", 1, 42.6629, 21.1655),
@@ -60,6 +72,25 @@ def create_database():
         ("Fisnik", "Lipjan", "Prishtina Center", "Waiting", None, 10.00)
     ]
 
+    locations = [
+        ("Prishtina Center", 42.6629, 21.1655),
+        ("Mother Teresa Boulevard", 42.6611, 21.1622),
+        ("Prishtina Bus Station", 42.6515, 21.1533),
+        ("University of Prishtina", 42.6488, 21.1663),
+        ("Rruga B", 42.6487, 21.1740),
+        ("Albi Mall", 42.6236, 21.1484),
+        ("Germia Park", 42.6786, 21.2011),
+        ("Prishtina Airport", 42.5728, 21.0358),
+        ("Fushe Kosove", 42.6394, 21.0961),
+        ("Lipjan", 42.5217, 21.1258),
+        ("Ferizaj", 42.3706, 21.1553),
+        ("Mitrovica", 42.8914, 20.8656),
+        ("Peja", 42.6591, 20.2883),
+        ("Prizren", 42.2139, 20.7397),
+        ("Gjakova", 42.3803, 20.4308),
+        ("Gjilan", 42.4635, 21.4699)
+    ]
+
     cursor.executemany("""
         INSERT INTO drivers 
         (name, car_model, license_plate, available, latitude, longitude)
@@ -71,6 +102,11 @@ def create_database():
         (customer_name, pickup_location, destination, status, driver_id, fare)
         VALUES (?, ?, ?, ?, ?, ?)
     """, rides)
+
+    cursor.executemany("""
+        INSERT INTO locations (name, latitude, longitude)
+        VALUES (?, ?, ?)
+     """, locations)
 
     conn.commit()
     conn.close()

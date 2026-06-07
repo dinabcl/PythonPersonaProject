@@ -10,41 +10,82 @@ API_URL = "http://127.0.0.1:8000"
 SIMULATED_MINUTE_SECONDS = 2
 
 st.set_page_config(page_title="Infinity Taxi", layout="wide")
-st.title("Infinity Taxi")
-st.caption("Taxi Dispatch and Tracking System")
+
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = st.query_params.get("logged_in", "false") == "true"
+
+if "role" not in st.session_state:
+    st.session_state.role = st.query_params.get("role", None)
+
+if "username" not in st.session_state:
+    st.session_state.username = st.query_params.get("username", None)
 
 if "active_rides" not in st.session_state:
     st.session_state.active_rides = []
 
-should_refresh = False
 
-for ride in st.session_state.active_rides:
-    if ride["last_status"] not in ["Completed", "Cancelled"]:
-        should_refresh = True
-        break
-
-if should_refresh:
-    st_autorefresh(interval=3000, key="refresh")
+if st.session_state.active_rides:
+    st_autorefresh(interval=3000, key="active_ride_refresh")
 
 
-location_data = {
-    "Prishtina Center": {"lat": 42.6629, "lon": 21.1655},
-    "Mother Teresa Boulevard": {"lat": 42.6611, "lon": 21.1622},
-    "Prishtina Bus Station": {"lat": 42.6515, "lon": 21.1533},
-    "University of Prishtina": {"lat": 42.6488, "lon": 21.1663},
-    "Rruga B": {"lat": 42.6487, "lon": 21.1740},
-    "Albi Mall": {"lat": 42.6236, "lon": 21.1484},
-    "Germia Park": {"lat": 42.6786, "lon": 21.2011},
-    "Prishtina Airport": {"lat": 42.5728, "lon": 21.0358},
-    "Fushe Kosove": {"lat": 42.6394, "lon": 21.0961},
-    "Lipjan": {"lat": 42.5217, "lon": 21.1258},
-    "Ferizaj": {"lat": 42.3706, "lon": 21.1553},
-    "Mitrovica": {"lat": 42.8914, "lon": 20.8656},
-    "Peja": {"lat": 42.6591, "lon": 20.2883},
-    "Prizren": {"lat": 42.2139, "lon": 20.7397},
-    "Gjakova": {"lat": 42.3803, "lon": 20.4308},
-    "Gjilan": {"lat": 42.4635, "lon": 21.4699}
-}
+def login_page():
+    st.title("Infinity Taxi")
+    st.caption("Taxi Dispatch and Tracking System")
+
+    st.subheader("Login")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        response = requests.post(
+            f"{API_URL}/auth/login",
+            json={
+                "username": username,
+                "password": password
+            }
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+
+            if result["success"]:
+                st.session_state.logged_in = True
+                st.session_state.role = result["role"]
+                st.session_state.username = result["username"]
+
+                st.query_params["logged_in"] = "true"
+                st.query_params["role"] = result["role"]
+                st.query_params["username"] = result["username"]
+
+                st.success("Login successful.")
+                st.rerun()
+            else:
+                st.error(result["message"])
+        else:
+            st.error("Could not connect to auth API.")
+
+
+def logout_button():
+    with st.sidebar:
+        st.write(f"Logged in as: {st.session_state.username}")
+        st.write(f"Role: {st.session_state.role}")
+
+        if st.button("Logout"):
+            st.session_state.logged_in = False
+            st.session_state.role = None
+            st.session_state.username = None
+            st.session_state.active_rides = []
+
+            st.query_params.clear()
+
+            st.rerun()
+
+
+def get_locations():
+    response = requests.get(f"{API_URL}/locations/")
+    return response.json() if response.status_code == 200 else []
 
 
 def get_drivers():
@@ -101,7 +142,7 @@ def status_badge(status):
     return f"⚪ {status}"
 
 
-def calculate_distance(start, end):
+def calculate_distance(start, end, location_data):
     p1 = location_data[start]
     p2 = location_data[end]
 
@@ -111,13 +152,15 @@ def calculate_distance(start, end):
     return round(((lat_diff ** 2 + lon_diff ** 2) ** 0.5) * 111, 2)
 
 
-def calculate_driver_to_pickup_distance(driver, pickup_location):
+def calculate_driver_to_pickup_distance(driver, pickup_location, location_data):
     pickup = location_data[pickup_location]
 
     lat_diff = driver["latitude"] - pickup["lat"]
     lon_diff = driver["longitude"] - pickup["lon"]
 
-    return round(((lat_diff ** 2 + lon_diff ** 2) ** 0.5) * 111, 2)
+    distance = round(((lat_diff ** 2 + lon_diff ** 2) ** 0.5) * 111, 2)
+
+    return max(distance, 1.0)
 
 
 def generate_eta(distance):
@@ -136,12 +179,14 @@ def generate_fare(distance):
 
 def interpolate(start_lat, start_lon, end_lat, end_lon, progress):
     progress = min(max(progress, 0), 1)
+
     current_lat = start_lat + (end_lat - start_lat) * progress
     current_lon = start_lon + (end_lon - start_lon) * progress
+
     return current_lat, current_lon
 
 
-def get_moving_driver(ride):
+def get_moving_driver(ride, location_data):
     driver = ride["driver"]
     elapsed = time.time() - ride["created_at"]
 
@@ -238,16 +283,179 @@ def show_driver_map(drivers):
     )
 
 
-drivers = get_drivers()
-rides = get_rides()
+def render_customer_app(drivers, location_data, locations):
+    st.header("Customer App")
 
-admin_tab, customer_tab = st.tabs([
-    "Admin Dashboard",
-    "Customer App"
-])
+    with st.form("ride_form"):
+        customer_name = st.text_input("Customer Name")
+
+        pickup_location = st.selectbox("Pickup Location", locations)
+        destination = st.selectbox("Destination", locations)
+
+        driver_options = []
+
+        for driver in drivers:
+            status = "🟢 Available" if driver["available"] == 1 else "🔴 Busy"
+            driver_options.append(
+                f"{driver['id']} - {driver['name']} ({status})"
+            )
+
+        selected_driver = st.selectbox("Choose Driver", driver_options)
+
+        submitted = st.form_submit_button("Request Taxi")
+
+        if submitted:
+            customer_name = customer_name.strip()
+
+            if not is_valid_name(customer_name):
+                st.error("Customer name must be at least 3 letters and contain only letters or spaces.")
+
+            elif pickup_location == destination:
+                st.error("Pickup and destination cannot be the same.")
+
+            elif not selected_driver:
+                st.error("No drivers found.")
+
+            else:
+                selected_driver_id = int(selected_driver.split(" - ")[0])
+
+                assigned_driver = None
+
+                for driver in drivers:
+                    if driver["id"] == selected_driver_id:
+                        assigned_driver = driver
+                        break
+
+                if assigned_driver["available"] != 1:
+                    st.error(
+                        f"{assigned_driver['name']} is currently busy. Please choose another driver."
+                    )
+                    st.stop()
+
+                trip_distance = calculate_distance(
+                    pickup_location,
+                    destination,
+                    location_data
+                )
+
+                pickup_distance = calculate_driver_to_pickup_distance(
+                    assigned_driver,
+                    pickup_location,
+                    location_data
+                )
+
+                pickup_eta = generate_pickup_eta(pickup_distance)
+                trip_eta = generate_eta(trip_distance)
+                fare = generate_fare(trip_distance)
+
+                payload = {
+                    "customer_name": customer_name,
+                    "pickup_location": pickup_location,
+                    "destination": destination,
+                    "status": "Accepted",
+                    "driver_id": assigned_driver["id"],
+                    "fare": fare
+                }
+
+                response = requests.post(f"{API_URL}/rides/", json=payload)
+
+                if response.status_code == 200:
+                    new_ride = response.json()
+
+                    update_driver_availability(
+                        assigned_driver["id"],
+                        False
+                    )
+
+                    st.session_state.active_rides.append({
+                        "ride_id": new_ride["id"],
+                        "driver": assigned_driver,
+                        "pickup_location": pickup_location,
+                        "destination": destination,
+                        "status": "Accepted",
+                        "pickup_eta": pickup_eta,
+                        "trip_eta": trip_eta,
+                        "fare": fare,
+                        "distance": trip_distance,
+                        "pickup_distance": pickup_distance,
+                        "created_at": time.time(),
+                        "last_status": "Accepted"
+                    })
+
+                    st.success(
+                        f"Taxi requested. {assigned_driver['name']} is on the way."
+                    )
+
+                    st.rerun()
+                else:
+                    st.error("Could not create ride.")
+
+    st.subheader("Active Rides")
+
+    if st.session_state.active_rides:
+        for index, ride in enumerate(st.session_state.active_rides):
+            driver = ride["driver"]
+
+            moving_driver, current_phase, remaining_eta = get_moving_driver(
+                ride,
+                location_data
+            )
+
+            if current_phase != ride["last_status"]:
+                ride["status"] = current_phase
+                ride["last_status"] = current_phase
+                update_ride_status(ride["ride_id"], current_phase)
+
+                if current_phase == "Completed":
+                    update_driver_availability(driver["id"], True)
+
+                st.session_state.active_rides[index] = ride
+
+            with st.expander(
+                f"Ride #{ride['ride_id']} - {driver['name']} - {status_badge(current_phase)}",
+                expanded=True
+            ):
+                st.write(f"**Status:** {status_badge(current_phase)}")
+                st.write(f"**Driver:** {driver['name']}")
+                st.write(f"**Car:** {driver['car_model']}")
+                st.write(f"**Plate:** {driver['license_plate']}")
+                st.write(f"**Pickup:** {ride['pickup_location']}")
+                st.write(f"**Destination:** {ride['destination']}")
+                st.write(f"**Pickup Distance:** {ride['pickup_distance']} km")
+                st.write(f"**Trip Distance:** {ride['distance']} km")
+                st.write(f"**Fare:** {ride['fare']} €")
+
+                if current_phase == "Accepted":
+                    st.write(f"**Driver arrives in:** {remaining_eta} minutes")
+
+                elif current_phase == "Transporting":
+                    st.write(f"**Trip finishes in:** {remaining_eta} minutes")
+
+                elif current_phase == "Completed":
+                    st.success("Ride completed. You arrived at your destination.")
+                    st.write("**ETA:** 0 minutes")
+
+                if current_phase != "Completed":
+                    if st.button("Cancel Ride", key=f"cancel_{ride['ride_id']}"):
+                        update_ride_status(
+                            ride["ride_id"],
+                            "Cancelled"
+                        )
+                        update_driver_availability(
+                            driver["id"],
+                            True
+                        )
+                        st.session_state.active_rides.pop(index)
+                        st.success("Ride cancelled.")
+                        st.rerun()
+
+                st.subheader("Live Driver Location")
+                show_driver_map([moving_driver])
+    else:
+        st.warning("No active rides yet.")
 
 
-with admin_tab:
+def render_admin_dashboard(drivers, rides, location_data, locations):
     st.header("Admin Dashboard")
 
     total_revenue = round(
@@ -273,7 +481,7 @@ with admin_tab:
 
         driver_location = st.selectbox(
             "Driver Starting Location",
-            list(location_data.keys())
+            locations
         )
 
         add_driver = st.form_submit_button("Add Driver")
@@ -336,7 +544,10 @@ with admin_tab:
     moving_driver_ids = []
 
     for active_ride in st.session_state.active_rides:
-        moving_driver, current_phase, remaining_eta = get_moving_driver(active_ride)
+        moving_driver, current_phase, remaining_eta = get_moving_driver(
+            active_ride,
+            location_data
+        )
 
         if current_phase != active_ride["last_status"]:
             active_ride["status"] = current_phase
@@ -344,7 +555,10 @@ with admin_tab:
             update_ride_status(active_ride["ride_id"], current_phase)
 
             if current_phase == "Completed":
-                update_driver_availability(active_ride["driver"]["id"], True)
+                update_driver_availability(
+                    active_ride["driver"]["id"],
+                    True
+                )
 
         if current_phase != "Completed":
             admin_map_drivers.append(moving_driver)
@@ -357,157 +571,51 @@ with admin_tab:
     show_driver_map(admin_map_drivers)
 
 
-with customer_tab:
-    st.header("Customer App")
+if not st.session_state.logged_in:
+    login_page()
+    st.stop()
 
-    locations = list(location_data.keys())
 
-    with st.form("ride_form"):
-        customer_name = st.text_input("Customer Name")
+locations_from_api = get_locations()
 
-        pickup_location = st.selectbox("Pickup Location", locations)
-        destination = st.selectbox("Destination", locations)
+if not locations_from_api:
+    st.error("No locations found. Check the /locations endpoint.")
+    st.stop()
 
-        driver_options = []
+location_data = {
+    location["name"]: {
+        "lat": location["latitude"],
+        "lon": location["longitude"]
+    }
+    for location in locations_from_api
+}
 
-        for driver in drivers:
-            status = "🟢 Available" if driver["available"] == 1 else "🔴 Busy"
-            driver_options.append(
-                f"{driver['id']} - {driver['name']} ({status})"
-            )
+locations = list(location_data.keys())
 
-        selected_driver = st.selectbox("Choose Driver", driver_options)
 
-        submitted = st.form_submit_button("Request Taxi")
+st.title("Infinity Taxi")
+st.caption(f"Logged in as {st.session_state.username} ({st.session_state.role})")
 
-        if submitted:
-            customer_name = customer_name.strip()
+logout_button()
 
-            if not is_valid_name(customer_name):
-                st.error("Customer name must be at least 3 letters and contain only letters or spaces.")
+drivers = get_drivers()
+rides = get_rides()
 
-            elif pickup_location == destination:
-                st.error("Pickup and destination cannot be the same.")
 
-            elif not selected_driver:
-                st.error("No drivers found.")
+if st.session_state.role == "admin":
+    admin_tab, customer_tab = st.tabs([
+        "Admin Dashboard",
+        "Customer App"
+    ])
 
-            else:
-                selected_driver_id = int(selected_driver.split(" - ")[0])
+    with admin_tab:
+        render_admin_dashboard(drivers, rides, location_data, locations)
 
-                assigned_driver = None
+    with customer_tab:
+        render_customer_app(drivers, location_data, locations)
 
-                for driver in drivers:
-                    if driver["id"] == selected_driver_id:
-                        assigned_driver = driver
-                        break
+elif st.session_state.role == "customer":
+    render_customer_app(drivers, location_data, locations)
 
-                if assigned_driver["available"] != 1:
-                    st.error(
-                        f"{assigned_driver['name']} is currently busy. Please choose another driver."
-                    )
-                    st.stop()
-
-                trip_distance = calculate_distance(pickup_location, destination)
-                pickup_distance = calculate_driver_to_pickup_distance(
-                    assigned_driver,
-                    pickup_location
-                )
-
-                pickup_eta = generate_pickup_eta(pickup_distance)
-                trip_eta = generate_eta(trip_distance)
-                fare = generate_fare(trip_distance)
-
-                payload = {
-                    "customer_name": customer_name,
-                    "pickup_location": pickup_location,
-                    "destination": destination,
-                    "status": "Accepted",
-                    "driver_id": assigned_driver["id"],
-                    "fare": fare
-                }
-
-                response = requests.post(f"{API_URL}/rides/", json=payload)
-
-                if response.status_code == 200:
-                    new_ride = response.json()
-
-                    update_driver_availability(assigned_driver["id"], False)
-
-                    st.session_state.active_rides.append({
-                        "ride_id": new_ride["id"],
-                        "driver": assigned_driver,
-                        "pickup_location": pickup_location,
-                        "destination": destination,
-                        "status": "Accepted",
-                        "pickup_eta": pickup_eta,
-                        "trip_eta": trip_eta,
-                        "fare": fare,
-                        "distance": trip_distance,
-                        "pickup_distance": pickup_distance,
-                        "created_at": time.time(),
-                        "last_status": "Accepted"
-                    })
-
-                    st.success(
-                        f"Taxi requested. {assigned_driver['name']} is on the way."
-                    )
-                    st.rerun()
-                else:
-                    st.error("Could not create ride.")
-
-    st.subheader("Active Rides")
-
-    if st.session_state.active_rides:
-        for index, ride in enumerate(st.session_state.active_rides):
-            driver = ride["driver"]
-            moving_driver, current_phase, remaining_eta = get_moving_driver(ride)
-
-            if current_phase != ride["last_status"]:
-                ride["status"] = current_phase
-                ride["last_status"] = current_phase
-                update_ride_status(ride["ride_id"], current_phase)
-
-                if current_phase == "Completed":
-                    update_driver_availability(driver["id"], True)
-
-                st.session_state.active_rides[index] = ride
-                st.rerun()
-
-            with st.expander(
-                f"Ride #{ride['ride_id']} - {driver['name']} - {status_badge(current_phase)}",
-                expanded=True
-            ):
-                st.write(f"**Status:** {status_badge(current_phase)}")
-                st.write(f"**Driver:** {driver['name']}")
-                st.write(f"**Car:** {driver['car_model']}")
-                st.write(f"**Plate:** {driver['license_plate']}")
-                st.write(f"**Pickup:** {ride['pickup_location']}")
-                st.write(f"**Destination:** {ride['destination']}")
-                st.write(f"**Pickup Distance:** {ride['pickup_distance']} km")
-                st.write(f"**Trip Distance:** {ride['distance']} km")
-                st.write(f"**Fare:** {ride['fare']} €")
-
-                if current_phase == "Accepted":
-                    st.write(f"**Driver arrives in:** {remaining_eta} minutes")
-
-                elif current_phase == "Transporting":
-                    st.write(f"**Trip finishes in:** {remaining_eta} minutes")
-
-                elif current_phase == "Completed":
-                    st.success("Ride completed. You arrived at your destination.")
-                    st.write("**ETA:** 0 minutes")
-
-                if current_phase != "Completed":
-                    if st.button("Cancel Ride", key=f"cancel_{ride['ride_id']}"):
-                        update_ride_status(ride["ride_id"], "Cancelled")
-                        update_driver_availability(driver["id"], True)
-                        st.session_state.active_rides.pop(index)
-                        st.success("Ride cancelled.")
-                        st.rerun()
-
-                st.subheader("Live Driver Location")
-                show_driver_map([moving_driver])
-
-    else:
-        st.warning("No active rides yet.")
+else:
+    st.error("Unknown user role.")
